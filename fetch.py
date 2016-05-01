@@ -4,7 +4,7 @@ from io import BytesIO
 from bs4 import BeautifulSoup
 
 def schedule(pod=None, neighborhood=None):
-
+    """Work around website inconsistencies"""
     if pod:
         site = 'http://www.seattlefoodtruck.com/schedule/' + pod + '-food-truck-pod'
         date_format = '%A, %d %B %Y '
