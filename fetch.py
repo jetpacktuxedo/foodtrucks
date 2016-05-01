@@ -1,14 +1,24 @@
 import datetime
-import json
 import pycurl
 from io import BytesIO
 from bs4 import BeautifulSoup
 
-def schedule():
+def schedule(pod=None, neighborhood=None):
+
+    if pod:
+        site = 'http://www.seattlefoodtruck.com/schedule/' + pod + '-food-truck-pod'
+        date_format = '%A, %d %B %Y '
+    elif neighborhood:
+        site = 'http://www.seattlefoodtruck.com/' + neighborhood
+        date_format = '%A, %B %d %Y '
+    else:
+        site = 'http://www.seattlefoodtruck.com/schedule/occidental-park-food-truck-pod'
+        date_format = '%A, %d %B %Y '
+
     """Grab page"""
     buffer = BytesIO()
     c = pycurl.Curl()
-    c.setopt(c.URL, 'http://www.seattlefoodtruck.com/schedule/occidental-park-food-truck-pod/')
+    c.setopt(c.URL, site)
     c.setopt(c.WRITEDATA, buffer)
     c.perform()
     c.close()
@@ -25,11 +35,24 @@ def schedule():
     """Convert separate lists into a sensible object"""
     jsonschedule = []
     for day in zip(days, schedule):
-        truck_date = datetime.datetime.strptime(day[0].text, '%A, %d %B %Y ').date().isoformat()
+        truck_date = datetime.datetime.strptime(day[0].text, date_format).date().isoformat()
         daydict = {"date": truck_date, "trucks":[item.text for item in day[1]]}
         jsonschedule.append(daydict)
     
     return(jsonschedule)
 
 if __name__ == "__main__":
-    print(schedule())
+    import argparse
+    import json
+    parser = argparse.ArgumentParser(description='List food trucks available in an area')
+    parser.add_argument('-p', '--pod', nargs='?',
+                        help='Location to check for truck schedule')
+    parser.add_argument('-n', '--neighborhood', nargs='?',
+                        help='Location to check for truck schedule')
+    args = parser.parse_args()
+    if args.pod:
+        print(json.dumps(schedule(pod=args.pod)))
+    elif args.neighborhood:
+        print(json.dumps(schedule(neighborhood=args.neighborhood)))
+    else:
+        print(json.dumps(schedule()))
