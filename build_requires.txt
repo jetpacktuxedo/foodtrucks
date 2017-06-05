@@ -1,3 +1,2 @@
 pycurl
 flask
-beautifulsoup4

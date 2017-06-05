@@ -1,45 +1,50 @@
 import datetime
-import pycurl
-from io import BytesIO
-from bs4 import BeautifulSoup
+import json
+import requests
 
-def schedule(pod=None, neighborhood=None):
-    """Work around website inconsistencies"""
-    if pod:
-        site = 'http://www.seattlefoodtruck.com/schedule/' + pod + '-food-truck-pod'
-        date_format = '%A, %d %B %Y '
-    elif neighborhood:
-        site = 'http://www.seattlefoodtruck.com/' + neighborhood
-        date_format = '%A, %B %d %Y '
-    else:
-        site = 'http://www.seattlefoodtruck.com/schedule/occidental-park-food-truck-pod'
-        date_format = '%A, %d %B %Y '
+def schedule(pod_name=None, location_id='39'):
+    if pod_name is not None:
+        pod = pod_lookup(pod_name)
+        location_id = pod.get('location').get('id')
 
-    """Grab page"""
-    buffer = BytesIO()
-    c = pycurl.Curl()
-    c.setopt(c.URL, site)
-    c.setopt(c.WRITEDATA, buffer)
-    c.perform()
-    c.close()
-    
-    """Strip line breaks because Beautiful Soup is dumb"""
-    body = buffer.getvalue()
-    body = str(body).replace("<br>", "").replace("</br>", "")
+    # Build url
+    page = 1
+    wtrucks = 'true'
+    wbookings = 'true'
+    wstatus = 'approved'
+    url = ('https://www.seattlefoodtruck.com/api/events'
+           '?page={}&for_locations={}&with_active_trucks={}'
+           '&include_bookings={}&with_booking_status={}').format(
+                   page, location_id, wtrucks, wbookings, wstatus)
 
-    """Parse schedule into lists"""
-    soup = BeautifulSoup(body, 'html.parser')
-    days = soup.find_all('dt')
-    schedule = [truck.ul.find_all('strong') for truck in soup.find_all('dd')]
-    
-    """Convert separate lists into a sensible object"""
-    jsonschedule = []
-    for day in zip(days, schedule):
-        truck_date = datetime.datetime.strptime(day[0].text, date_format).date().isoformat()
-        daydict = {"date": truck_date, "trucks":[item.text for item in day[1]]}
-        jsonschedule.append(daydict)
-    
-    return(jsonschedule)
+    # Reformat output
+    events = requests.get(url).json().get('events')
+    eventlist = []
+    for event in events:
+        next_trucks = {'start': event.get('start_time'),
+                       'end': event.get('end_time'),
+                       'trucks': []}
+        for truck in event.get('bookings'):
+            truck = truck.get('truck')
+            single_truck = {'truck_name': truck.get('name'),
+                            'truck_id': truck.get('id')}
+            next_trucks.get('trucks').append(single_truck)
+        eventlist.append(next_trucks)
+    return eventlist
+
+def pod_lookup(searchpod):
+    url = 'https://www.seattlefoodtruck.com/api/pods'
+    podlist = requests.get(url).json().get('pods')
+    for pod in podlist:
+        if pod.get('id') == searchpod:
+            return pod
+    #print(json.dumps(podlist))
+
+def get_menu(truck_id):
+    url = 'https://www.seattlefoodtruck.com/api/trucks/{}'.format(truck_id)
+    menu = requests.get(url)
+    if menu:
+        return menu.json().get('menu_items')
 
 if __name__ == "__main__":
     import argparse
@@ -51,8 +56,6 @@ if __name__ == "__main__":
                         help='Location to check for truck schedule')
     args = parser.parse_args()
     if args.pod:
-        print(json.dumps(schedule(pod=args.pod)))
-    elif args.neighborhood:
-        print(json.dumps(schedule(neighborhood=args.neighborhood)))
+        print(json.dumps(schedule(pod_name=args.pod)))
     else:
         print(json.dumps(schedule()))
