@@ -43,5 +43,15 @@ def menu():
     resp.mimetype = 'application/json'
     return resp
 
+@app.route('/alttoday')
+def alttoday():
+    schedule = fetch.schedule()
+    today = datetime.date.today().isoformat()
+    my_item = [item.get('trucks') for item in schedule if item.get('start').split('T')[0] == today]
+    resp = flask.make_response(json.dumps(my_item))
+    resp.status='200'
+    resp.mimetype="application/json"
+    return resp
+
 if __name__ == '__main__':
-    app.run('0.0.0.0', debug=True)
+    app.run('0.0.0.0')
